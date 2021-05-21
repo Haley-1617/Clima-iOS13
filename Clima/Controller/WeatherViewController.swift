@@ -7,8 +7,9 @@
 //
 
 import UIKit
+import CoreLocation
 
-class WeatherViewController: UIViewController, UITextFieldDelegate, WeatherManagerDelegate {
+class WeatherViewController: UIViewController {
 
     @IBOutlet weak var conditionImageView: UIImageView!
     @IBOutlet weak var temperatureLabel: UILabel!
@@ -16,13 +17,19 @@ class WeatherViewController: UIViewController, UITextFieldDelegate, WeatherManag
     @IBOutlet weak var searchTextField: UITextField!
     
     var weatherManager = WeatherManager()
+    let locationManager = CLLocationManager()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        locationManager.delegate = self
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.requestLocation()
+        
 //        self = current view controller
         weatherManager.delegate = self
         searchTextField.delegate = self
+        
     }
 
     @IBAction func searchPressed(_ sender: UIButton) {
@@ -30,6 +37,32 @@ class WeatherViewController: UIViewController, UITextFieldDelegate, WeatherManag
         print(searchTextField.text!)
     }
     
+    @IBAction func currentLocationPressed(_ sender: UIButton) {
+        locationManager.requestLocation()
+    }
+    
+}
+
+//MARK: - CLLocationManagerDelegate
+
+extension WeatherViewController: CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if let location = locations.last {
+            locationManager.stopUpdatingLocation()
+            let lat = location.coordinate.latitude
+            let lon = location.coordinate.longitude
+            weatherManager.fetchWeather(latitude: lat, longitude: lon)
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print(error)
+    }
+}
+
+//MARK: - UITextFieldDelegate
+
+extension WeatherViewController: UITextFieldDelegate {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         searchTextField.endEditing(true)
         print(searchTextField.text!)
@@ -50,10 +83,24 @@ class WeatherViewController: UIViewController, UITextFieldDelegate, WeatherManag
         }
         searchTextField.text = ""
     }
-    
-    func didUpdateWeather(weather: WeatherModel) {
-        print(weather.temperature)
-    }
-    
 }
 
+//MARK: - WeatherManagerDelegate
+
+extension WeatherViewController: WeatherManagerDelegate {
+    //    delegate method from WeatherManager
+        func didUpdateWeather(_ weatherManager: WeatherManager, weather: WeatherModel) {
+    //        DispatchQueue.main.async{} is required when dealing with code that run on background (i.e. fetch data from API) during the runtime. Otherwise the UI doesn't know what to present when waiting data be returned
+            DispatchQueue.main.async {
+                self.temperatureLabel.text = weather.tempStr
+                self.conditionImageView.image = UIImage(systemName: weather.conditionName)
+                self.cityLabel.text = weather.cityName
+            }
+            
+        }
+        
+    //    delegate method from WeatherManager
+        func didFailWithError(error: Error) {
+            print(error)
+        }
+}
